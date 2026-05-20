@@ -1,32 +1,69 @@
-export const API_CONFIG ={
-    BASE_URL: "MEU SERVIDOR BACK END",
-    SOCKET_URL: 'MEU SERVIDOR SEM PREFIXO/API',
-    TIMEOUT: 60000
-}
+export const API_CONFIG = {
 
-export interface apiResponse <t= any> {
+    // PRODUÇÃO RENDER
+    BASE_URL:
+        'https://meetstranger-app-backend-main.onrender.com/api',
+
+    SOCKET_URL:
+        'https://meetstranger-app-backend-main.onrender.com',
+
+    TIMEOUT: 60000
+};
+
+// =========================
+// API RESPONSE
+// =========================
+export interface ApiResponse<T = any> {
+
     success: boolean;
-    data?: t;
+
+    data?: T;
+
     message?: string;
+
     error?: string;
 }
 
+// =========================
+// USER
+// =========================
 export interface User {
-    id:string;
-    userName:string;
+
+    id: string;
+
+    username: string;
+
     email: string;
-    createdAt: string
+
+    createdAt?: string;
 }
-export interface chatRoom {
-    id:string;
-    category:string;
+
+// =========================
+// CHAT ROOM
+// =========================
+export interface ChatRoom {
+
+    id: string;
+
+    category: string;
+
     participants: string[];
-    createdAt:string;
+
+    createdAt: string;
 }
-export interface message{
-    id:string;
+
+// =========================
+// MESSAGE
+// =========================
+export interface Message {
+
+    id: string;
+
     roomId: string;
+
     userId: string;
-    text:string;
-    timestamp:string
+
+    text: string;
+
+    timestamp: string;
 }

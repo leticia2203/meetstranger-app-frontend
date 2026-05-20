@@ -1,15 +1,15 @@
 export interface User {
     id: string;
-    name: string;
-    userName?: string;
+    username: string;
     email: string;
+    createdAt?: string;
 }
 export interface ChatMessage {
     id: string;
     text: string;
     isUser: boolean;
     timestamp: Date;
-    UserName: string;
+    username: string;
 }
 
 export interface ChatCategory {

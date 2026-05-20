@@ -1,129 +1,365 @@
-import {useCallback, useEffect, useState} from 'react';
-import{ ChatMessage} from '../constants/types';
-import{wsService} from '../services/websocket';
+import { useCallback, useEffect, useState } from 'react';
+
+import { ChatMessage } from '../constants/types';
+
+import { wsService } from '../services/websocket';
 
 export function useChat(category: string) {
-    const [messages, setMessages] = useState<ChatMessage[]>([]);
-    const[isConnected, setIsConnected] = useState(false);
-    const [isMatching, setIsMatching] = useState(false);
-    const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
-    const [partnerName, setPartnerName] = useState<string>('Procurando...');
-    const handleNewMessage = useCallback((data:any) => {
-        console.log('New message received:', data);
-        const newMessage: ChatMessage ={
+
+    const [messages, setMessages] =
+        useState<ChatMessage[]>([]);
+
+    // MATCH REAL
+    const [hasMatch, setHasMatch] =
+        useState(false);
+
+    const [isMatching, setIsMatching] =
+        useState(false);
+
+    const [currentRoomId, setCurrentRoomId] =
+        useState<string | null>(null);
+
+    const [partnerName, setPartnerName] =
+        useState<string>('Procurando...');
+
+    // =========================
+    // NOVA MENSAGEM
+    // =========================
+    const handleNewMessage = useCallback((data: any) => {
+
+        console.log(
+            '📩 New message received:',
+            data
+        );
+
+        const newMessage: ChatMessage = {
+
             id: data.id,
-            text:data.message,
-            isUser:false,
-            timestamp:new Date(data.timestamp),
-            UserName: data.username|| 'Desconhecido;'
-        }
-        setMessages(prev => [...prev,newMessage]);
+
+            text: data.message,
+
+            isUser: false,
+
+            timestamp: new Date(data.timestamp),
+
+            username:
+                data.username || 'Desconhecido'
+        };
+
+        setMessages(prev => [
+            ...prev,
+            newMessage
+        ]);
+
     }, []);
+
+    // =========================
+    // MATCH ENCONTRADO
+    // =========================
     const handleMatchFound = useCallback((data: any) => {
-        console.log('Match found:', data);
+
+        console.log(
+            '🎯 Match found:',
+            data
+        );
+
         setCurrentRoomId(data.roomId);
+
+        // entra na sala
+        wsService.joinRoom(data.roomId);
+
+        // AGORA TEM MATCH
+        setHasMatch(true);
+
+        // NÃO está mais procurando
         setIsMatching(false);
-        setIsConnected(true);
+
+        // limpa mensagens antigas
         setMessages([]);
-        setPartnerName(data.partner?.name || data.partner?.userName || 'Stranger')
-        }, []);
-    const handleUserLeft = useCallback(() =>{
-        console.log('User left');
-        setIsConnected(false);
-        setCurrentRoomId(null);
-        setPartnerName('Procurando...')
+
+        // nome parceiro
+        setPartnerName(
+            data.partner?.username || 'Stranger'
+        );
+
+    }, []);
+
+    // =========================
+    // PARCEIRO SAIU
+    // =========================
+    const handleUserLeft = useCallback(() => {
+
+        console.log(
+            '🚪 Partner left'
+        );
+
+        // perdeu match
+        setHasMatch(false);
+
+        // volta busca
         setIsMatching(true);
 
-        setTimeout(()=>{
+        // limpa sala
+        setCurrentRoomId(null);
+
+        // limpa mensagens
+        setMessages([]);
+
+        // reset parceiro
+        setPartnerName('Procurando...');
+
+        // busca automática
+        setTimeout(() => {
+
             wsService.findMatch(category);
-        },1000);
+
+        }, 1000);
+
     }, [category]);
 
-    const handleQueueStatus = useCallback((data:any) => {
-        console.log('Queue status:', data);
+    // =========================
+    // STATUS FILA
+    // =========================
+    const handleQueueStatus = useCallback((data: any) => {
+
+        console.log(
+            '📊 Queue status:',
+            data
+        );
+
+        // está procurando
         setIsMatching(true);
-    },[]);
-    useEffect(()=> {
+
+        // ainda sem parceiro
+        setHasMatch(false);
+
+    }, []);
+
+    // =========================
+    // SOCKET INIT
+    // =========================
+    useEffect(() => {
+
         const initializeWebSocket = async () => {
+
             try {
-                    if(!wsService.connected) {
-                        await wsService.connect();
-                    }
-                    const socket = wsService.socket;
-                    wsService.onMessage(handleNewMessage);
-                    wsService.onMatchingFound(handleMatchFound)
-                    wsService.onUserLeft(handleUserLeft);
-                    socket?.on('queue-status', handleQueueStatus);
-                    socket?.on('partner_left', handleUserLeft);
-                    socket?.on('partner_disconnected', handleUserLeft);
-                    console.log('Starting automatic match search for:', category);
-                    wsService.findMatch(category);
-                    setIsMatching(true);
-            } catch (error){
-                console.error('WebSocket connection failed:',error);
+
+                // conecta websocket
+                if (!wsService.connected) {
+
+                    await wsService.connect();
+                }
+
+                const socket =
+                    wsService.socket;
+
+                // =========================
+                // LISTENERS
+                // =========================
+                wsService.onMessage(
+                    handleNewMessage
+                );
+
+                wsService.onMatchingFound(
+                    handleMatchFound
+                );
+
+                socket?.on(
+                    'queue-status',
+                    handleQueueStatus
+                );
+
+                socket?.on(
+                    'partner_left',
+                    handleUserLeft
+                );
+
+                socket?.on(
+                    'partner_disconnected',
+                    handleUserLeft
+                );
+
+                console.log(
+                    '🔎 Starting automatic match search:',
+                    category
+                );
+
+                // inicia busca
+                wsService.findMatch(category);
+
+                setIsMatching(true);
+
+            } catch (error) {
+
+                console.error(
+                    '❌ WebSocket connection failed:',
+                    error
+                );
             }
         };
+
         initializeWebSocket();
-        return()=>{
-            const socket = wsService.socket;
-            socket?.off('new-message', handleNewMessage);
-            socket?.off('match-found', handleMatchFound);
-            socket?.off('user-left', handleUserLeft);
-            socket?.off('queue-status', handleQueueStatus);
-            socket?.off('partner_left', handleUserLeft);
-            socket?.off('partner_disconnected', handleUserLeft);
+
+        // =========================
+        // CLEANUP
+        // =========================
+        return () => {
+
+            const socket =
+                wsService.socket;
+
+            socket?.off(
+                'new-message',
+                handleNewMessage
+            );
+
+            socket?.off(
+                'match-found',
+                handleMatchFound
+            );
+
+            socket?.off(
+                'queue-status',
+                handleQueueStatus
+            );
+
+            socket?.off(
+                'partner_left',
+                handleUserLeft
+            );
+
+            socket?.off(
+                'partner_disconnected',
+                handleUserLeft
+            );
         };
-    }, [category, handleNewMessage,handleMatchFound, handleUserLeft,handleQueueStatus]);
-   const sendMessage = async (text: string) => {
-    if(!text.trim() || !currentRoomId) return;
-    const newMessage: ChatMessage = {
-        id: Date.now().toString(),
-        text: text.trim(),
-        isUser:true,
-        timestamp: new Date(),
-        UserName: 'Você'
+
+    }, [
+        category,
+        handleNewMessage,
+        handleMatchFound,
+        handleUserLeft,
+        handleQueueStatus
+    ]);
+
+    // =========================
+    // ENVIAR MENSAGEM
+    // =========================
+    const sendMessage = async (
+        text: string
+    ) => {
+
+        if (
+            !text.trim() ||
+            !currentRoomId
+        ) return;
+
+        const newMessage: ChatMessage = {
+
+            id: Date.now().toString(),
+
+            text: text.trim(),
+
+            isUser: true,
+
+            timestamp: new Date(),
+
+            username: 'Você'
+        };
+
+        setMessages(prev => [
+            ...prev,
+            newMessage
+        ]);
+
+        try {
+
+            wsService.sendMessage(
+                currentRoomId,
+                text.trim()
+            );
+
+        } catch (error) {
+
+            console.error(
+                '❌ Error sending message:',
+                error
+            );
+        }
     };
-    setMessages(prev => [...prev,newMessage]);
-    try {
-        wsService.sendMessage(currentRoomId, text.trim());
-    } catch(error) {
-        console.error('Error sending message:', error);
 
-    }
-   };
-   const findNewPartner = async () => {
-    if(currentRoomId) {
-        wsService.leaveRoom(currentRoomId);
-    }
+    // =========================
+    // NOVO PARCEIRO
+    // =========================
+    const findNewPartner = async () => {
 
-    setIsConnected(false);
-    setIsMatching(true);
-    setMessages([]);
-    setCurrentRoomId(null);
-    setPartnerName('Procurando...');
+        if (currentRoomId) {
 
-    try{
-        wsService.findMatch(category);
-    }catch (error) {
-        console.error('Error finding match:', error);
-        setIsMatching(false);
-    }
+            wsService.leaveRoom(
+                currentRoomId
+            );
+        }
+
+        // reset estados
+        setHasMatch(false);
+
+        setIsMatching(true);
+
+        setMessages([]);
+
+        setCurrentRoomId(null);
+
+        setPartnerName(
+            'Procurando...'
+        );
+
+        try {
+
+            wsService.findMatch(
+                category
+            );
+
+        } catch (error) {
+
+            console.error(
+                '❌ Error finding match:',
+                error
+            );
+
+            setIsMatching(false);
+        }
     };
 
-    useEffect(() =>{
-        return() =>{
+    // =========================
+    // UNMOUNT CLEANUP
+    // =========================
+    useEffect(() => {
+
+        return () => {
+
             if (currentRoomId) {
-                wsService.leaveRoom(currentRoomId);
+
+                wsService.leaveRoom(
+                    currentRoomId
+                );
             }
         };
-    },[currentRoomId]);
+
+    }, [currentRoomId]);
+
     return {
+
         messages,
-        isConnected,
+
+        // AGORA REFLETE MATCH REAL
+        isConnected: hasMatch,
+
         isMatching,
-        isMAtching: isMatching,
+
         partnerName,
+
         sendMessage,
+
         findNewPartner
     };
-   }
+}
